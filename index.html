@@ -3,33 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <title>Blink + Gesture Control App</title>
-   <script src="./hands.js"></script>
+    <script src="./hands.js"></script>
     <script src="./face_mesh.js"></script>
     <script src="./camera_utils.js"></script>
     <style>
-        body {
-            margin: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            font-family: Arial, sans-serif;
-            background-color: #f0f0f0;
-        }
-        video, canvas {
-            width: 640px;
-            height: 480px;
-            border: 1px solid #ccc;
-        }
-        video {
-            display: none;
-        }
-        #controls {
-            margin-top: 10px;
-        }
-        button {
-            padding: 10px 20px;
-            margin: 0 5px;
-        }
+        body { margin: 0; display: flex; flex-direction: column; align-items: center; font-family: Arial, sans-serif; background-color: #f0f0f0; }
+        video, canvas { width: 640px; height: 480px; border: 1px solid #ccc; }
+        video { display: none; }
+        #controls { margin-top: 10px; }
+        button { padding: 10px 20px; margin: 0 5px; }
     </style>
 </head>
 <body>
@@ -41,28 +23,17 @@
     </div>
 
     <script>
-        // Constants
         const LEFT_EYE = [33, 160, 158, 133, 153, 144];
         const RIGHT_EYE = [362, 385, 387, 263, 373, 380];
-        const FINGER_CONNECTIONS = [
-            [0, 1, 2, 3, 4],    // Thumb
-            [0, 5, 6, 7, 8],    // Index
-            [0, 9, 10, 11, 12],  // Middle
-            [0, 13, 14, 15, 16], // Ring
-            [0, 17, 18, 19, 20]  // Pinky
-        ];
+        const FINGER_CONNECTIONS = [[0, 1, 2, 3, 4], [0, 5, 6, 7, 8], [0, 9, 10, 11, 12], [0, 13, 14, 15, 16], [0, 17, 18, 19, 20]];
 
-        // DOM elements
         const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
 
-        // Recording variables
         let recording = false;
         let mediaRecorder;
         let recordedChunks = [];
-
-        // Gesture tracking
         let blinkTimes = [];
         let lastBlinkTime = 0;
         let threeFingerStartTime = null;
@@ -82,70 +53,45 @@
                     }).catch(err => console.error("Error playing video:", err));
                 };
             })
-            .catch(err => {
-                console.error("Error accessing webcam:", err);
-                ctx.fillStyle = "red";
-                ctx.font = "20px Arial";
-                ctx.fillText("Webcam access failed: " + err.message, 10, 50);
-            });
+            .catch(err => console.error("Error accessing webcam:", err));
 
         // Mediapipe Hands setup
         const hands = new Hands({
             locateFile: (file) => {
-                console.log(`Loading Hands file: ${file}`);
-                return `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/${file}`;
+                console.log(`Hands loading: ${file}`);
+                return `./${file}`;
             }
         });
         hands.setOptions({ maxNumHands: 1, minDetectionConfidence: 0.7 });
         hands.onResults(onHandResults);
         hands.initialize().then(() => console.log("Hands initialized")).catch(err => console.error("Hands init failed:", err));
 
-        // Mediapipe Face Mesh setup
+        // Mediapipe FaceMesh setup
         const faceMesh = new FaceMesh({
             locateFile: (file) => {
-                console.log(`Loading FaceMesh file: ${file}`);
-                return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/${file}`;
+                console.log(`FaceMesh loading: ${file}`);
+                return `./${file}`;
             }
         });
         faceMesh.setOptions({ refineLandmarks: true });
         faceMesh.onResults(onFaceResults);
         faceMesh.initialize().then(() => console.log("FaceMesh initialized")).catch(err => console.error("FaceMesh init failed:", err));
 
-        // Frame processing
-        function processFrame() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            Promise.all([
-                hands.send({ image: video }).catch(err => console.error("Hands processing error:", err)),
-                faceMesh.send({ image: video }).catch(err => console.error("FaceMesh processing error:", err))
-            ]).catch(err => console.error("Frame processing error:", err));
-            requestAnimationFrame(processFrame);
-        }
-
         function startProcessing() {
             console.log("Starting frame processing...");
-            if (typeof Camera !== 'undefined') {
-                const camera = new Camera(video, {
-                    onFrame: async () => {
-                        ctx.clearRect(0, 0, canvas.width, canvas.height);
-                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                        await hands.send({ image: video });
-                        await faceMesh.send({ image: video });
-                    },
-                    width: 640,
-                    height: 480
-                });
-                camera.start()
-                    .then(() => console.log("Mediapipe camera started"))
-                    .catch(err => {
-                        console.error("Mediapipe camera failed:", err);
-                        console.log("Falling back to manual loop...");
-                        processFrame();
-                    });
-            } else {
-                console.log("Camera not available, using manual loop...");
-                processFrame();
-            }
+            const camera = new Camera(video, {
+                onFrame: async () => {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    await Promise.all([
+                        hands.send({ image: video }).catch(err => console.error("Hands processing error:", err)),
+                        faceMesh.send({ image: video }).catch(err => console.error("FaceMesh processing error:", err))
+                    ]);
+                },
+                width: 640,
+                height: 480
+            });
+            camera.start().then(() => console.log("Mediapipe camera started")).catch(err => console.error("Camera start failed:", err));
         }
 
         function onFaceResults(results) {
@@ -165,7 +111,7 @@
                 ctx.strokeRect(leftBox[0], leftBox[1], leftBox[2] - leftBox[0], leftBox[3] - leftBox[1]);
                 ctx.strokeRect(rightBox[0], rightBox[1], rightBox[2] - rightBox[0], rightBox[3] - rightBox[1]);
 
-                const blinkThreshold = 0.15; // Adjusted for sensitivity
+                const blinkThreshold = 0.15;
                 const currentTime = Date.now() / 1000;
                 if (leftEyeRatio < blinkThreshold && rightEyeRatio < blinkThreshold) {
                     if (currentTime - lastBlinkTime > 0.1) {
@@ -177,21 +123,6 @@
                     if (blinkTimes.length === 2 && blinkTimes[1] - blinkTimes[0] <= 1) {
                         console.log("Double blink! Taking screenshot...");
                         takeScreenshot();
-
-                        const previewImg = new Image();
-                        previewImg.src = canvas.toDataURL('image/png');
-                        previewImg.onload = () => {
-                            ctx.drawImage(previewImg, 0, 0, canvas.width, canvas.height);
-                            setTimeout(() => {
-                                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                            }, 1500);
-                        };
-
-                        const audio = new Audio('https://www.soundjay.com/buttons/beep-01a.mp3');
-                        audio.play().catch(err => console.log("Audio playback failed:", err));
-
-                        setTimeout(() => {}, 2000);
                         blinkTimes = [];
                     }
                 }
@@ -212,10 +143,9 @@
                 drawFingerLines(ctx, landmarks, frameWidth, frameHeight);
 
                 const fingerCount = countFingers(landmarks);
-                const fingerText = fingerCount === 1 ? "Finger" : "Fingers";
-                ctx.font = "20px Arial";
                 ctx.fillStyle = "yellow";
-                ctx.fillText(`${fingerText}: ${fingerCount}`, handBox[0], handBox[1] - 10);
+                ctx.font = "20px Arial";
+                ctx.fillText(`Fingers: ${fingerCount}`, handBox[0], handBox[1] - 10);
 
                 const currentTime = Date.now() / 1000;
                 if (currentTime - lastGestureTime > 2) {
@@ -237,30 +167,18 @@
         }
 
         function getEyeRatio(landmarks, indices, frameWidth, frameHeight) {
-            const points = indices.map(i => [
-                landmarks[i].x * frameWidth,
-                landmarks[i].y * frameHeight
-            ]);
+            const points = indices.map(i => [landmarks[i].x * frameWidth, landmarks[i].y * frameHeight]);
             const leftRight = Math.hypot(points[0][0] - points[3][0], points[0][1] - points[3][1]);
-            const topBottom = (Math.hypot(points[1][0] - points[5][0], points[1][1] - points[5][1]) +
-                              Math.hypot(points[2][0] - points[4][0], points[2][1] - points[4][1])) / 2;
+            const topBottom = (Math.hypot(points[1][0] - points[5][0], points[1][1] - points[5][1]) + Math.hypot(points[2][0] - points[4][0], points[2][1] - points[4][1])) / 2;
             return topBottom / leftRight;
         }
 
         function getEyeBoundingBox(landmarks, indices, frameWidth, frameHeight) {
-            const points = indices.map(i => [
-                landmarks[i].x * frameWidth,
-                landmarks[i].y * frameHeight
-            ]);
+            const points = indices.map(i => [landmarks[i].x * frameWidth, landmarks[i].y * frameHeight]);
             const xCoords = points.map(p => p[0]);
             const yCoords = points.map(p => p[1]);
             const padding = 10;
-            return [
-                Math.min(...xCoords) - padding,
-                Math.min(...yCoords) - padding,
-                Math.max(...xCoords) + padding,
-                Math.max(...yCoords) + padding
-            ];
+            return [Math.min(...xCoords) - padding, Math.min(...yCoords) - padding, Math.max(...xCoords) + padding, Math.max(...yCoords) + padding];
         }
 
         function countFingers(landmarks) {
@@ -279,12 +197,10 @@
             FINGER_CONNECTIONS.forEach(finger => {
                 ctx.beginPath();
                 for (let i = 0; i < finger.length - 1; i++) {
-                    const start = finger[i];
-                    const end = finger[i + 1];
-                    const startX = landmarks[start].x * frameWidth;
-                    const startY = landmarks[start].y * frameHeight;
-                    const endX = landmarks[end].x * frameWidth;
-                    const endY = landmarks[end].y * frameHeight;
+                    const startX = landmarks[finger[i]].x * frameWidth;
+                    const startY = landmarks[finger[i]].y * frameHeight;
+                    const endX = landmarks[finger[i + 1]].x * frameWidth;
+                    const endY = landmarks[finger[i + 1]].y * frameHeight;
                     if (i === 0) ctx.moveTo(startX, startY);
                     ctx.lineTo(endX, endY);
                 }
@@ -296,12 +212,7 @@
             const xCoords = landmarks.map(lm => lm.x * frameWidth);
             const yCoords = landmarks.map(lm => lm.y * frameHeight);
             const padding = 20;
-            return [
-                Math.min(...xCoords) - padding,
-                Math.min(...yCoords) - padding,
-                Math.max(...xCoords) + padding,
-                Math.max(...yCoords) + padding
-            ];
+            return [Math.min(...xCoords) - padding, Math.min(...yCoords) - padding, Math.max(...xCoords) + padding, Math.max(...yCoords) + padding];
         }
 
         function takeScreenshot() {
