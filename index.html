@@ -90,18 +90,28 @@
             });
 
         // Mediapipe Hands setup
-        const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/${file}` });
+        const hands = new Hands({
+            locateFile: (file) => {
+                console.log(`Loading Hands file: ${file}`);
+                return `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/${file}`;
+            }
+        });
         hands.setOptions({ maxNumHands: 1, minDetectionConfidence: 0.7 });
         hands.onResults(onHandResults);
         hands.initialize().then(() => console.log("Hands initialized")).catch(err => console.error("Hands init failed:", err));
 
         // Mediapipe Face Mesh setup
-        const faceMesh = new FaceMesh({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/${file}` });
+        const faceMesh = new FaceMesh({
+            locateFile: (file) => {
+                console.log(`Loading FaceMesh file: ${file}`);
+                return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/${file}`;
+            }
+        });
         faceMesh.setOptions({ refineLandmarks: true });
         faceMesh.onResults(onFaceResults);
         faceMesh.initialize().then(() => console.log("FaceMesh initialized")).catch(err => console.error("FaceMesh init failed:", err));
 
-        // Manual frame loop (fallback)
+        // Frame processing
         function processFrame() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -155,7 +165,7 @@
                 ctx.strokeRect(leftBox[0], leftBox[1], leftBox[2] - leftBox[0], leftBox[3] - leftBox[1]);
                 ctx.strokeRect(rightBox[0], rightBox[1], rightBox[2] - rightBox[0], rightBox[3] - rightBox[1]);
 
-                const blinkThreshold = 0.12;
+                const blinkThreshold = 0.15; // Adjusted for sensitivity
                 const currentTime = Date.now() / 1000;
                 if (leftEyeRatio < blinkThreshold && rightEyeRatio < blinkThreshold) {
                     if (currentTime - lastBlinkTime > 0.1) {
