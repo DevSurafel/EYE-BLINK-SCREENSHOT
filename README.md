@@ -108,7 +108,7 @@ ffmpeg -f gdigrab -framerate 30 -i desktop output.mp4
 ---
 
 ## 🧑‍💻 Author
-Surafel Diriba
+-Surafel Diriba
 Feel free to fork or reach out!
 
 ---
