@@ -92,8 +92,9 @@
         // Mediapipe Hands setup
         const hands = new Hands({
             locateFile: (file) => {
-                console.log(`Hands loading: ${file}`);
-                return `./${file}`; // Local files
+                const url = `./${file}`;
+                console.log(`Hands loading: ${file} from ${url}`);
+                return url; // Local files
             }
         });
         hands.setOptions({ maxNumHands: 1, minDetectionConfidence: 0.7 });
@@ -105,8 +106,9 @@
         // Mediapipe Face Mesh setup
         const faceMesh = new FaceMesh({
             locateFile: (file) => {
-                console.log(`FaceMesh loading: ${file}`);
-                return `./${file}`; // Local files
+                const url = `./${file}`;
+                console.log(`FaceMesh loading: ${file} from ${url}`);
+                return url; // Local files
             }
         });
         faceMesh.setOptions({ refineLandmarks: true });
