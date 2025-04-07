@@ -20,6 +20,9 @@
             height: 480px;
             border: 1px solid #ccc;
         }
+        video {
+            display: none; /* Hide video once canvas works */
+        }
         #controls {
             margin-top: 10px;
         }
@@ -30,7 +33,7 @@
     </style>
 </head>
 <body>
-    <video id="video" autoplay playsinline></video> <!-- Removed display: none to debug -->
+    <video id="video" autoplay playsinline></video>
     <canvas id="canvas"></canvas>
     <div id="controls">
         <button onclick="takeScreenshot()">Take Screenshot</button>
@@ -96,27 +99,43 @@
         faceMesh.setOptions({ refineLandmarks: true });
         faceMesh.onResults(onFaceResults);
 
-        // Camera setup with explicit frame rendering
-        const camera = new Camera(video, {
-            onFrame: async () => {
+        // Check if Camera is available
+        if (typeof Camera === 'undefined') {
+            console.error("Camera class not defined. Falling back to manual frame loop.");
+            function manualFrameLoop() {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height); // Ensure video is drawn
-                try {
-                    await hands.send({ image: video });
-                    await faceMesh.send({ image: video });
-                } catch (err) {
-                    console.error("Error processing frame:", err);
-                }
-            },
-            width: 640,
-            height: 480
-        });
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                hands.send({ image: video }).catch(err => console.error("Hands error:", err));
+                faceMesh.send({ image: video }).catch(err => console.error("FaceMesh error:", err));
+                requestAnimationFrame(manualFrameLoop);
+            }
+            function startProcessing() {
+                console.log("Starting manual frame loop...");
+                manualFrameLoop();
+            }
+        } else {
+            // Camera setup with Mediapipe
+            const camera = new Camera(video, {
+                onFrame: async () => {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    try {
+                        await hands.send({ image: video });
+                        await faceMesh.send({ image: video });
+                    } catch (err) {
+                        console.error("Error processing frame:", err);
+                    }
+                },
+                width: 640,
+                height: 480
+            });
 
-        function startProcessing() {
-            console.log("Starting camera...");
-            camera.start()
-                .then(() => console.log("Camera started successfully"))
-                .catch(err => console.error("Error starting camera:", err));
+            function startProcessing() {
+                console.log("Starting Mediapipe camera...");
+                camera.start()
+                    .then(() => console.log("Camera started successfully"))
+                    .catch(err => console.error("Error starting camera:", err));
+            }
         }
 
         function onFaceResults(results) {
