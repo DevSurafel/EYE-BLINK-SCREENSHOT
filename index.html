@@ -93,27 +93,27 @@
         const hands = new Hands({
             locateFile: (file) => {
                 console.log(`Hands loading: ${file}`);
-                return `./${file}`; // Use local files
+                return `./${file}`; // Local files
             }
         });
         hands.setOptions({ maxNumHands: 1, minDetectionConfidence: 0.7 });
         hands.onResults(onHandResults);
         hands.initialize()
-            .then(() => console.log("Hands initialized"))
-            .catch(err => console.error("Hands init failed:", err));
+            .then(() => console.log("Hands initialized successfully"))
+            .catch(err => console.error("Hands initialization failed:", err));
 
         // Mediapipe Face Mesh setup
         const faceMesh = new FaceMesh({
             locateFile: (file) => {
                 console.log(`FaceMesh loading: ${file}`);
-                return `./${file}`; // Use local files
+                return `./${file}`; // Local files
             }
         });
         faceMesh.setOptions({ refineLandmarks: true });
         faceMesh.onResults(onFaceResults);
         faceMesh.initialize()
-            .then(() => console.log("FaceMesh initialized"))
-            .catch(err => console.error("FaceMesh init failed:", err));
+            .then(() => console.log("FaceMesh initialized successfully"))
+            .catch(err => console.error("FaceMesh initialization failed:", err));
 
         // Frame processing
         function startProcessing() {
@@ -139,7 +139,7 @@
                         processFrame();
                     });
             } else {
-                console.error("Camera API not available!");
+                console.error("Camera API not available, falling back to manual loop...");
                 processFrame();
             }
         }
