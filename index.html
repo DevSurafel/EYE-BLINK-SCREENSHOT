@@ -13,7 +13,7 @@
             flex-direction: column;
             align-items: center;
             font-family: Arial, sans-serif;
-            background-color: #f0f0f0;
+grpc            background-color: #f0f0f0;
         }
         video, canvas {
             width: 640px;
@@ -92,9 +92,11 @@
         // Mediapipe Hands setup
         const hands = new Hands({
             locateFile: (file) => {
-                const url = `./${file}`;
-                console.log(`Hands loading: ${file} from ${url}`);
-                return url; // Local files
+                // Ensure .wasm extension for specific files
+                const correctedFile = file.includes('simd_wasm_bin') ? file.replace('.js', '.wasm') : file;
+                const url = `${window.location.origin}/${correctedFile}`;
+                console.log(`Hands loading: ${correctedFile} from ${url}`);
+                return url;
             }
         });
         hands.setOptions({ maxNumHands: 1, minDetectionConfidence: 0.7 });
@@ -106,9 +108,11 @@
         // Mediapipe Face Mesh setup
         const faceMesh = new FaceMesh({
             locateFile: (file) => {
-                const url = `./${file}`;
-                console.log(`FaceMesh loading: ${file} from ${url}`);
-                return url; // Local files
+                // Ensure .wasm extension for specific files
+                const correctedFile = file.includes('simd_wasm_bin') ? file.replace('.js', '.wasm') : file;
+                const url = `${window.location.origin}/${correctedFile}`;
+                console.log(`FaceMesh loading: ${correctedFile} from ${url}`);
+                return url;
             }
         });
         faceMesh.setOptions({ refineLandmarks: true });
