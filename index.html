@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Gesture Control App</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+</head>
+<body>
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas"></canvas>
+    <button onclick="takeScreenshot()">Take Screenshot</button>
+    <button onclick="toggleRecording()">Start/Stop Recording</button>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let recording = false;
+        let mediaRecorder;
+        let recordedChunks = [];
+
+        // Webcam setup
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => {
+                video.srcObject = stream;
+                video.onloadedmetadata = () => {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                };
+            });
+
+        // Mediapipe Hands setup
+        const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+        hands.setOptions({ maxNumHands: 1, minDetectionConfidence: 0.7 });
+        hands.onResults(onHandResults);
+
+        // Mediapipe Face Mesh setup
+        const faceMesh = new FaceMesh({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`});
+        faceMesh.setOptions({ refineLandmarks: true });
+        faceMesh.onResults(onFaceResults);
+
+        const camera = new Camera(video, {
+            onFrame: async () => {
+                await hands.send({image: video});
+                await faceMesh.send({image: video});
+            },
+            width: 640,
+            height: 480
+        });
+        camera.start();
+
+        let blinkTimes = [];
+        let threeFingerStartTime = null;
+
+        function onFaceResults(results) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            if (results.multiFaceLandmarks) {
+                const landmarks = results.multiFaceLandmarks[0];
+                const leftEyeRatio = getEyeRatio(landmarks, [33, 160, 158, 133, 153, 144]);
+                const rightEyeRatio = getEyeRatio(landmarks, [362, 385, 387, 263, 373, 380]);
+
+                if (leftEyeRatio < 0.2 && rightEyeRatio < 0.2) {
+                    const now = Date.now() / 1000;
+                    if (!blinkTimes.length || now - blinkTimes[blinkTimes.length - 1] > 0.1) {
+                        blinkTimes.push(now);
+                        console.log("Blink detected!");
+                    }
+                    blinkTimes = blinkTimes.filter(t => now - t <= 2);
+                    if (blinkTimes.length === 2 && blinkTimes[1] - blinkTimes[0] <= 1) {
+                        takeScreenshot();
+                        blinkTimes = [];
+                    }
+                }
+            }
+        }
+
+        function onHandResults(results) {
+            if (results.multiHandLandmarks) {
+                const landmarks = results.multiHandLandmarks[0];
+                const fingerCount = countFingers(landmarks);
+                ctx.font = "20px Arial";
+                ctx.fillStyle = "yellow";
+                ctx.fillText(`${fingerCount} Fingers`, 10, 30);
+
+                const now = Date.now() / 1000;
+                if (fingerCount === 3) {
+                    if (!threeFingerStartTime) {
+                        threeFingerStartTime = now;
+                        ctx.fillText("Hold for 1 sec...", 10, 60);
+                    } else if (now - threeFingerStartTime >= 1) {
+                        toggleRecording();
+                        threeFingerStartTime = null;
+                    }
+                } else {
+                    threeFingerStartTime = null;
+                }
+            }
+        }
+
+        function getEyeRatio(landmarks, indices) {
+            const points = indices.map(i => [landmarks[i].x * canvas.width, landmarks[i].y * canvas.height]);
+            const leftRight = Math.hypot(points[0][0] - points[3][0], points[0][1] - points[3][1]);
+            const topBottom = (Math.hypot(points[1][0] - points[5][0], points[1][1] - points[5][1]) +
+                              Math.hypot(points[2][0] - points[4][0], points[2][1] - points[4][1])) / 2;
+            return topBottom / leftRight;
+        }
+
+        function countFingers(landmarks) {
+            const tips = [8, 12, 16]; // Index, Middle, Ring
+            const knuckles = [6, 10, 14];
+            let count = 0;
+            for (let i = 0; i < tips.length; i++) {
+                if (landmarks[tips[i]].y < landmarks[knuckles[i]].y) count++;
+            }
+            return count;
+        }
+
+        function takeScreenshot() {
+            const link = document.createElement('a');
+            link.download = `screenshot_${Date.now()}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            console.log("Screenshot taken!");
+        }
+
+        function toggleRecording() {
+            if (!recording) {
+                navigator.mediaDevices.getDisplayMedia({ video: true })
+                    .then(stream => {
+                        mediaRecorder = new MediaRecorder(stream);
+                        mediaRecorder.ondataavailable = e => recordedChunks.push(e.data);
+                        mediaRecorder.onstop = () => {
+                            const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `recording_${Date.now()}.webm`;
+                            a.click();
+                            recordedChunks = [];
+                        };
+                        mediaRecorder.start();
+                        recording = true;
+                        console.log("Recording started!");
+                    });
+            } else {
+                mediaRecorder.stop();
+                recording = false;
+                console.log("Recording stopped!");
+            }
+        }
+    </script>
+</body>
+</html>
