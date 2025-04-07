@@ -21,7 +21,7 @@
             border: 1px solid #ccc;
         }
         video {
-            display: none; /* Hide video once canvas works */
+            display: none;
         }
         #controls {
             margin-top: 10px;
@@ -93,53 +93,54 @@
         const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/${file}` });
         hands.setOptions({ maxNumHands: 1, minDetectionConfidence: 0.7 });
         hands.onResults(onHandResults);
+        hands.initialize().then(() => console.log("Hands initialized")).catch(err => console.error("Hands init failed:", err));
 
         // Mediapipe Face Mesh setup
         const faceMesh = new FaceMesh({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/${file}` });
         faceMesh.setOptions({ refineLandmarks: true });
         faceMesh.onResults(onFaceResults);
+        faceMesh.initialize().then(() => console.log("FaceMesh initialized")).catch(err => console.error("FaceMesh init failed:", err));
 
-        // Check if Camera is available
-        if (typeof Camera === 'undefined') {
-            console.error("Camera class not defined. Falling back to manual frame loop.");
-            function manualFrameLoop() {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                hands.send({ image: video }).catch(err => console.error("Hands error:", err));
-                faceMesh.send({ image: video }).catch(err => console.error("FaceMesh error:", err));
-                requestAnimationFrame(manualFrameLoop);
-            }
-            function startProcessing() {
-                console.log("Starting manual frame loop...");
-                manualFrameLoop();
-            }
-        } else {
-            // Camera setup with Mediapipe
-            const camera = new Camera(video, {
-                onFrame: async () => {
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    try {
+        // Manual frame loop (fallback)
+        function processFrame() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            Promise.all([
+                hands.send({ image: video }).catch(err => console.error("Hands processing error:", err)),
+                faceMesh.send({ image: video }).catch(err => console.error("FaceMesh processing error:", err))
+            ]).catch(err => console.error("Frame processing error:", err));
+            requestAnimationFrame(processFrame);
+        }
+
+        function startProcessing() {
+            console.log("Starting frame processing...");
+            if (typeof Camera !== 'undefined') {
+                const camera = new Camera(video, {
+                    onFrame: async () => {
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                         await hands.send({ image: video });
                         await faceMesh.send({ image: video });
-                    } catch (err) {
-                        console.error("Error processing frame:", err);
-                    }
-                },
-                width: 640,
-                height: 480
-            });
-
-            function startProcessing() {
-                console.log("Starting Mediapipe camera...");
+                    },
+                    width: 640,
+                    height: 480
+                });
                 camera.start()
-                    .then(() => console.log("Camera started successfully"))
-                    .catch(err => console.error("Error starting camera:", err));
+                    .then(() => console.log("Mediapipe camera started"))
+                    .catch(err => {
+                        console.error("Mediapipe camera failed:", err);
+                        console.log("Falling back to manual loop...");
+                        processFrame();
+                    });
+            } else {
+                console.log("Camera not available, using manual loop...");
+                processFrame();
             }
         }
 
         function onFaceResults(results) {
             if (results.multiFaceLandmarks) {
+                console.log("Face detected!");
                 const landmarks = results.multiFaceLandmarks[0];
                 const frameWidth = canvas.width;
                 const frameHeight = canvas.height;
@@ -189,6 +190,7 @@
 
         function onHandResults(results) {
             if (results.multiHandLandmarks) {
+                console.log("Hand detected!");
                 const landmarks = results.multiHandLandmarks[0];
                 const frameWidth = canvas.width;
                 const frameHeight = canvas.height;
